@@ -1,1 +1,35 @@
+# Binaries
+/testflow
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build cache & output
+*.test
+*.out
+*.log
+coverage.*
+/bin/
+/build/
+/dist/
+/tmp/
+
+# Dependency directories (Go modules use go.sum, so vendor/ optional)
+vendor/
+
+# IDE & editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.DS_Store
+
+# Playwright test outputs (futuros, caso você rode testes)
+test-results/
+playwright-report/
+blob-report/
+
+# Environment variables file
 .env
