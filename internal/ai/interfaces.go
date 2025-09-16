@@ -1,9 +1,12 @@
 package ai
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+)
 
 type AIClient interface {
-	GenerateTest(prompt string) (AIResponse, error)
+	GenerateTest(ctx context.Context, prompt string) (AIResponse, error)
 }
 
 type AIParser interface {
