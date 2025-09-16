@@ -87,7 +87,7 @@ jobs:
       - name: Build CLI
         run: |
           mkdir -p dist
-          go build -o dist/testflow ./cmd/testflow # Adjust if main.go is in cmd/
+          go build -o dist/testflow ./cmd/main.go
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
