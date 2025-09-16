@@ -17,7 +17,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.x'
+          go-version: '1.24.7'
           cache: true
 
       - name: Print Go version
@@ -31,8 +31,8 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
-          args: --timeout=3m --fail-on-error ./...
+          version: v1.64.8 # Pin to match the version that was installed
+          args: --timeout=3m ./...
 
   test:
     name: Run Tests
@@ -60,7 +60,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        if: always()  
+        if: steps.test.outputs.coverage == 'true' # Only upload if tests ran
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
