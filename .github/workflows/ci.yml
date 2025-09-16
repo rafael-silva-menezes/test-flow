@@ -31,7 +31,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64.8 # Pin to match the version that was installed
+          version: v1.64.8
           args: --timeout=3m ./...
 
   test:
@@ -51,16 +51,18 @@ jobs:
         run: go version
 
       - name: Check for tests
+        id: test # Add ID to set output
         run: |
           if [ -n "$(find . -name '*_test.go')" ]; then
             go test -v -coverprofile=coverage.out ./...
+            echo "coverage=true" >> $GITHUB_OUTPUT
           else
             echo "No test files found. Skipping test step."
-            exit 0
+            echo "coverage=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload coverage report
-        if: steps.test.outputs.coverage == 'true' # Only upload if tests ran
+        if: steps.test.outputs.coverage == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
@@ -87,7 +89,7 @@ jobs:
       - name: Build CLI
         run: |
           mkdir -p dist
-          go build -o dist/testflow ./cmd/main.go
+          go build -o dist/testflow ./cmd # Fixed path to cmd/
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
