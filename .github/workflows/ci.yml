@@ -2,12 +2,12 @@ name: Go CI/CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,19 +17,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23.x"
+          go-version: "1.24.x"
           cache: true
 
-      - name: Install Tools
+      - name: Install tools
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
 
-      - name: Run Makefile All
+      - name: Run full Makefile pipeline
         run: make all
-
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage.out
