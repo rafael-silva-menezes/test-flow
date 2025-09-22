@@ -74,8 +74,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test]
     steps:
-      - name: Checkout code
+      - name: Checkout minimal files for SonarCloud
         uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            coverage.out
+            sonar-project.properties
 
       - name: Download coverage report
         uses: actions/download-artifact@v4
