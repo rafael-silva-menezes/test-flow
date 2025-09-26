@@ -35,8 +35,7 @@ type ollamaRequest struct {
 	Stream bool   `json:"stream"`
 }
 
-// GenerateRaw sends the prompt to Ollama and returns the raw response.
-func (o *OllamaClient) GenerateRaw(ctx context.Context, prompt string) (string, error) {
+func (o *OllamaClient) generateRaw(ctx context.Context, prompt string) (string, error) {
 	if strings.TrimSpace(prompt) == "" {
 		return "", &AIError{
 			Message:    "prompt cannot be empty",
@@ -106,7 +105,7 @@ func (o *OllamaClient) handleResponse(resp *http.Response) (string, error) {
 
 // GenerateTest returns a parsed AIResponse from Ollama.
 func (o *OllamaClient) GenerateTest(ctx context.Context, prompt string) (AIResponse, error) {
-	raw, err := o.GenerateRaw(ctx, prompt)
+	raw, err := o.generateRaw(ctx, prompt)
 	if err != nil {
 		return AIResponse{}, err
 	}
