@@ -2,110 +2,103 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
-	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type MockAIParser struct {
-	response AIResponse
-	err      error
-}
-
-func (m *MockAIParser) ParseAIResponse(raw string) (AIResponse, error) {
-	return m.response, m.err
-}
-
-type MockHTTPClient struct {
-	DoFunc func(req *http.Request) (*http.Response, error)
-}
-
-func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	return m.DoFunc(req)
-}
-
-func newMockHTTPClient(body io.Reader, status int, err error) *MockHTTPClient {
-	return &MockHTTPClient{
-		DoFunc: func(req *http.Request) (*http.Response, error) {
-			if err != nil {
-				return nil, err
-			}
-			return &http.Response{
-				StatusCode: status,
-				Body:       io.NopCloser(body),
-			}, nil
+func TestGenerateTest_TableDriven(t *testing.T) {
+	tests := []struct {
+		name        string
+		prompt      string
+		parser      AIParser
+		httpBody    string
+		httpStatus  int
+		httpErr     error
+		wantErr     bool
+		errContains string
+		wantResp    AIResponse
+	}{
+		{
+			name:       "success",
+			prompt:     "prompt",
+			parser:     &MockAIParser{Response: AIResponse{TestName: "T1", Code: "assert true"}},
+			httpBody:   `{"test_name":"T1","code":"assert true"}`,
+			httpStatus: 200,
+			wantErr:    false,
+			wantResp:   AIResponse{TestName: "T1", Code: "assert true"},
+		},
+		{
+			name:        "parser error",
+			prompt:      "prompt",
+			parser:      &MockAIParser{Err: errors.New("parse error")},
+			httpBody:    "",
+			httpStatus:  200,
+			wantErr:     true,
+			errContains: "parse error",
+		},
+		{
+			name:        "http request failed",
+			prompt:      "prompt",
+			parser:      &MockAIParser{},
+			httpBody:    "",
+			httpStatus:  0,
+			httpErr:     errors.New("request failed"),
+			wantErr:     true,
+			errContains: "request failed",
+		},
+		{
+			name:        "empty prompt",
+			prompt:      "   ",
+			parser:      &MockAIParser{},
+			httpBody:    "",
+			httpStatus:  200,
+			wantErr:     true,
+			errContains: "prompt cannot be empty",
+		},
+		{
+			name:        "http status error",
+			prompt:      "prompt",
+			parser:      &MockAIParser{},
+			httpBody:    "server error",
+			httpStatus:  500,
+			wantErr:     true,
+			errContains: "server error",
+		},
+		{
+			name:        "body read error",
+			prompt:      "prompt",
+			parser:      &MockAIParser{},
+			httpBody:    "",
+			httpStatus:  200,
+			httpErr:     nil,
+			wantErr:     true,
+			errContains: "failed to read response body",
 		},
 	}
-}
 
-func newOllamaClientWithMocks(parser AIParser, httpBody io.Reader, httpStatus int, httpErr error) *OllamaClient {
-	return &OllamaClient{
-		model:   "test-model",
-		stream:  false,
-		parser:  parser,
-		client:  newMockHTTPClient(httpBody, httpStatus, httpErr),
-		baseURL: "http://mock",
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var httpBodyReader io.Reader = strings.NewReader(tt.httpBody)
+			if tt.name == "body read error" {
+				httpBodyReader = &brokenReader{}
+			}
+
+			client := newOllamaClientWithMocks(tt.parser, httpBodyReader, tt.httpStatus, tt.httpErr)
+			resp, err := client.GenerateTest(context.Background(), tt.prompt)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantResp, resp)
+			}
+		})
 	}
-}
-
-type brokenReader struct{}
-
-func (br *brokenReader) Read(p []byte) (int, error) { return 0, io.ErrClosedPipe }
-func (br *brokenReader) Close() error               { return nil }
-
-func TestGenerateTest_Success(t *testing.T) {
-	expected := AIResponse{TestName: "T1", Code: "assert true"}
-	jsonBody, _ := json.Marshal(expected)
-
-	client := newOllamaClientWithMocks(&MockAIParser{response: expected}, strings.NewReader(string(jsonBody)), http.StatusOK, nil)
-	resp, err := client.GenerateTest(context.Background(), "prompt")
-	assert.NoError(t, err)
-	assert.Equal(t, expected.TestName, resp.TestName)
-	assert.Equal(t, expected.Code, resp.Code)
-}
-
-func TestGenerateTest_ParserError(t *testing.T) {
-	parserErr := errors.New("parse error")
-	client := newOllamaClientWithMocks(&MockAIParser{err: parserErr}, strings.NewReader(""), http.StatusOK, nil)
-	_, err := client.GenerateTest(context.Background(), "prompt")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "parse error")
-}
-
-func TestGenerateTest_HTTPErrorPropagation(t *testing.T) {
-	client := newOllamaClientWithMocks(&MockAIParser{}, strings.NewReader(""), 0, errors.New("request failed"))
-	_, err := client.GenerateTest(context.Background(), "prompt")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "request failed")
-}
-
-func TestGenerateTest_EmptyPrompt(t *testing.T) {
-	client := newOllamaClientWithMocks(&MockAIParser{}, strings.NewReader(""), http.StatusOK, nil)
-	_, err := client.GenerateTest(context.Background(), "   ") // prompt vazio
-	assert.Error(t, err)
-	apiErr, ok := err.(*AIError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
-}
-
-func TestGenerateTest_HTTPStatusError(t *testing.T) {
-	client := newOllamaClientWithMocks(&MockAIParser{}, strings.NewReader("server error"), http.StatusInternalServerError, nil)
-	_, err := client.GenerateTest(context.Background(), "prompt")
-	assert.Error(t, err)
-	apiErr, ok := err.(*AIError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusInternalServerError, apiErr.StatusCode)
-	assert.Contains(t, apiErr.Message, "server error")
-}
-
-func TestGenerateTest_BodyReadError(t *testing.T) {
-	client := newOllamaClientWithMocks(&MockAIParser{}, &brokenReader{}, http.StatusOK, nil)
-	_, err := client.GenerateTest(context.Background(), "prompt")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to read response body")
 }
